@@ -5,7 +5,7 @@ import (
 	"log"
 	"net"
 
-	glc "github.com/itzraghavv/httpWebServer/getLinesChannel"
+	"github.com/itzraghavv/httpWebServer/internal/request"
 )
 
 func main() {
@@ -22,14 +22,15 @@ func main() {
 		if conErr != nil {
 			log.Fatalf("error: %s\n", conErr.Error())
 		}
-		fmt.Println("Connection accepted", conn.RemoteAddr())
+		log.Println("Connection accepted", conn.RemoteAddr())
 
-		l := glc.GetLinesChannel(conn)
-		for line := range l {
-			fmt.Println(line)
+		data, err := request.RequestFromReader(conn)
+		if err != nil {
+			log.Fatalf("error: %s\n", err.Error())
 		}
 
-		fmt.Println("connection closed", conn.RemoteAddr())
-	}
+		fmt.Printf("Request Line:\n - Method: %v\n - Target: %v\n - Version: %v\n", data.RequestLine.Method, data.RequestLine.RequestTarget, data.RequestLine.HttpVersion)
 
+		log.Println("connection closed", conn.RemoteAddr())
+	}
 }
