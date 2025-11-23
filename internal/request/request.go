@@ -11,6 +11,7 @@ type state int
 const (
 	initialized state = iota
 	done
+	requestStateParsingHeaders
 )
 
 type Request struct {
