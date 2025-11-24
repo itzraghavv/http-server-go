@@ -30,7 +30,7 @@ func main() {
 		}
 
 		fmt.Printf("Request Line:\n - Method: %v\n - Target: %v\n - Version: %v\n", data.RequestLine.Method, data.RequestLine.RequestTarget, data.RequestLine.HttpVersion)
-
+		fmt.Printf("Headers:\n - %v", data.Headers)
 		log.Println("connection closed", conn.RemoteAddr())
 	}
 }

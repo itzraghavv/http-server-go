@@ -4,17 +4,22 @@ import (
 	"errors"
 	"io"
 	"strings"
+
+	"github.com/itzraghavv/httpWebServer/internal/headers"
 )
 
 type state int
 
 const (
 	initialized state = iota
+	requestStateParsingRequestLine
+	requestStateParsingHeaders
 	done
 )
 
 type Request struct {
 	RequestLine RequestLine
+	Headers     headers.Headers
 	State       state
 }
 
@@ -28,7 +33,8 @@ var bufferSize int = 8
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
 	req := &Request{
-		State: initialized,
+		State:   initialized,
+		Headers: make(headers.Headers),
 	}
 
 	buff := make([]byte, bufferSize)
@@ -43,7 +49,10 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 		r, err := reader.Read(buff[readToIndex:])
 		if err == io.EOF {
-			break
+			if req.State == requestStateParsingHeaders {
+				req.State = done
+				break
+			}
 		}
 
 		if err != nil {
@@ -112,7 +121,31 @@ func parseRequestLine(data string) (RequestLine, int, error) {
 }
 
 func (r *Request) parse(data []byte) (int, error) {
-	if r.State == initialized {
+	totalBytesParsed := 0
+
+	for r.State != done {
+		n, err := r.parseSingle(data[totalBytesParsed:])
+		if err != nil {
+			return 0, err
+		}
+		totalBytesParsed += n
+
+		if n == 0 {
+			break
+		}
+	}
+
+	return totalBytesParsed, nil
+}
+
+func (r *Request) parseSingle(data []byte) (int, error) {
+	switch r.State {
+
+	case initialized:
+		r.State = requestStateParsingRequestLine
+		return 0, nil
+
+	case requestStateParsingRequestLine:
 		rl, noOfBytes, err := parseRequestLine(string(data))
 		if err != nil {
 			return 0, err
@@ -123,14 +156,21 @@ func (r *Request) parse(data []byte) (int, error) {
 		}
 
 		r.RequestLine = rl
-		r.State = done
+		r.State = requestStateParsingHeaders
 
+		return noOfBytes, nil
+
+	case requestStateParsingHeaders:
+		noOfBytes, headerDone, err := r.Headers.Parse(data)
+		if err != nil {
+			return 0, err
+		}
+
+		if headerDone {
+			r.State = done
+		}
 		return noOfBytes, nil
 	}
 
-	if r.State == done {
-		return 0, errors.New("error: trying to read data in a done state")
-	}
-
-	return 0, errors.New("error: unknown state")
+	return 0, errors.New("unknown state")
 }
