@@ -89,7 +89,7 @@ func TestRequestLineParse(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestParsingHeaders(t *testing.T) {
+func TestRequestParseHeaders(t *testing.T) {
 	// Test: Standard Headers
 	reader := &chunkReader{
 		data:            "GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n",
@@ -107,6 +107,6 @@ func TestParsingHeaders(t *testing.T) {
 		data:            "GET / HTTP/1.1\r\nHost localhost:42069\r\n\r\n",
 		numBytesPerRead: 3,
 	}
-	r, err = RequestFromReader(reader)
+	_, err = RequestFromReader(reader)
 	require.Error(t, err)
 }
