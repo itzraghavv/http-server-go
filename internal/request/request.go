@@ -3,6 +3,7 @@ package request
 import (
 	"errors"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/itzraghavv/httpWebServer/internal/headers"
@@ -14,12 +15,14 @@ const (
 	initialized state = iota
 	requestStateParsingRequestLine
 	requestStateParsingHeaders
+	requestStateParsingBody
 	done
 )
 
 type Request struct {
 	RequestLine RequestLine
 	Headers     headers.Headers
+	Body        []byte
 	State       state
 }
 
@@ -167,9 +170,33 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 		}
 
 		if headerDone {
-			r.State = done
+			r.State = requestStateParsingBody
 		}
 		return noOfBytes, nil
+
+	case requestStateParsingBody:
+		contentLength := r.Headers.Get("Content-Length")
+		if contentLength == "" {
+			r.State = done
+			return len(data), nil
+		}
+
+		r.Body = append(r.Body, data...)
+
+		clInt, err := strconv.Atoi(contentLength)
+		if err != nil {
+			return len(data), err
+		}
+
+		if len(r.Body) > clInt {
+			return len(data), errors.New("len of body is greater than content len header")
+		}
+		if len(r.Body) == clInt {
+			r.State = done
+			return len(data), nil
+		}
+
+		return len(data), nil
 	}
 
 	return 0, errors.New("unknown state")
