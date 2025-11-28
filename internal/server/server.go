@@ -5,6 +5,8 @@ import (
 	"net"
 	"strconv"
 	"sync/atomic"
+
+	"github.com/itzraghavv/httpWebServer/internal/response"
 )
 
 type Server struct {
@@ -46,12 +48,28 @@ func (s *Server) Listen() error {
 	return nil
 }
 
-func (s *Server) Handle(conn net.Conn) {
+func (s *Server) Handle(conn net.Conn) error {
 	defer conn.Close()
-	conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 12\r\n\r\nHello World!"))
+
+	body := []byte("")
+
+	headers := response.GetDefaultHeaders(len(body))
+
+	err := response.WriteStatusLine(conn, response.OK)
+	if err != nil {
+		return err
+	}
+
+	err = response.WriteHeaders(conn, headers)
+	if err != nil {
+		return err
+	}
+
+	conn.Write(body)
+	return nil
 }
 
 func (s *Server) Close() {
-	s.isClosed.Store(true)
 	s.Listener.Close()
+	s.isClosed.Store(true)
 }
