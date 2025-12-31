@@ -1,26 +1,51 @@
 package server
 
 import (
+	"bytes"
+	"io"
 	"log"
 	"net"
 	"strconv"
 	"sync/atomic"
 
+	"github.com/itzraghavv/httpWebServer/internal/request"
 	"github.com/itzraghavv/httpWebServer/internal/response"
 )
 
 type Server struct {
 	Listener net.Listener
+	Handler
 	isClosed atomic.Bool
 }
 
-func Serve(port int) (*Server, error) {
+type HandlerError struct {
+	StatusCode response.StatusCode
+	Message    string
+}
+
+type Handler func(w io.Writer, req *request.Request) *HandlerError
+
+func (h *HandlerError) writeErr(w io.Writer) {
+	if h == nil {
+		return
+	}
+
+	body := []byte(h.Message)
+
+	response.WriteStatusLine(w, h.StatusCode)
+	headers := response.GetDefaultHeaders(len(body))
+	response.WriteHeaders(w, headers)
+	w.Write(body)
+}
+
+func Serve(port int, handler Handler) (*Server, error) {
 	listner, err := net.Listen("tcp", ":"+strconv.Itoa(port))
 	if err != nil {
 		return nil, err
 	}
 
 	server := &Server{
+		Handler:  handler,
 		Listener: listner,
 	}
 
@@ -29,44 +54,53 @@ func Serve(port int) (*Server, error) {
 	return server, nil
 }
 
-func (s *Server) Listen() error {
+func (s *Server) Listen() {
 
 	for {
 		conn, err := s.Listener.Accept()
 
 		if err != nil {
 			if s.isClosed.Load() {
-				break
-			} else {
-				log.Println(err)
-				continue
+				return
 			}
+			log.Printf("Error accepting connection: %v", err)
+			continue
 
 		}
 		go s.Handle(conn)
 	}
-	return nil
 }
 
-func (s *Server) Handle(conn net.Conn) error {
+var handlerErr Handler
+
+func (s *Server) Handle(conn net.Conn) {
 	defer conn.Close()
 
-	body := []byte("")
-
-	headers := response.GetDefaultHeaders(len(body))
-
-	err := response.WriteStatusLine(conn, response.OK)
+	req, err := request.RequestFromReader(conn)
 	if err != nil {
-		return err
+		hErr := &HandlerError{
+			StatusCode: response.BadRequest,
+			Message:    err.Error(),
+		}
+		hErr.writeErr(conn)
+		return
 	}
 
-	err = response.WriteHeaders(conn, headers)
-	if err != nil {
-		return err
+	buff := bytes.NewBuffer([]byte{})
+	hErr := s.Handler(buff, req)
+
+	if hErr != nil {
+		hErr.writeErr(conn)
+		return
 	}
 
-	conn.Write(body)
-	return nil
+	b := buff.Bytes()
+	response.WriteStatusLine(conn, response.OK)
+	headers := response.GetDefaultHeaders(len(b))
+	response.WriteHeaders(conn, headers)
+
+	conn.Write(b)
+
 }
 
 func (s *Server) Close() {
