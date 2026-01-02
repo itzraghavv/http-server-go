@@ -14,7 +14,7 @@ import (
 
 type Server struct {
 	Listener net.Listener
-	Handler
+	handler  Handler
 	isClosed atomic.Bool
 }
 
@@ -23,7 +23,7 @@ type HandlerError struct {
 	Message    string
 }
 
-type Handler func(w io.Writer, req *request.Request) *HandlerError
+type Handler func(res *response.Writer, req *request.Request)
 
 func (h *HandlerError) writeErr(w io.Writer) {
 	if h == nil {
@@ -45,7 +45,7 @@ func Serve(port int, handler Handler) (*Server, error) {
 	}
 
 	server := &Server{
-		Handler:  handler,
+		handler:  handler,
 		Listener: listner,
 	}
 
@@ -87,12 +87,8 @@ func (s *Server) Handle(conn net.Conn) {
 	}
 
 	buff := bytes.NewBuffer([]byte{})
-	hErr := s.Handler(buff, req)
-
-	if hErr != nil {
-		hErr.writeErr(conn)
-		return
-	}
+	res := response.NewWriter(conn)
+	s.handler(res, req)
 
 	b := buff.Bytes()
 	response.WriteStatusLine(conn, response.OK)

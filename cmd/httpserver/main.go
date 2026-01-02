@@ -1,38 +1,66 @@
 package main
 
 import (
-	"io"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/itzraghavv/httpWebServer/internal/request"
+	"github.com/itzraghavv/httpWebServer/internal/response"
 	"github.com/itzraghavv/httpWebServer/internal/server"
 )
 
 const port = 42069
 
-func handler(w io.Writer, req *request.Request) *server.HandlerError {
+func handler(res *response.Writer, req *request.Request) {
 
-	if req == nil {
-		log.Println("req is nil")
-		return &server.HandlerError{
-			StatusCode: 500,
-			Message:    "nil request\n",
-		}
-	}
-
-	target := req.RequestLine.RequestTarget
-
-	if target == "/myproblem" {
-		return &server.HandlerError{
-			StatusCode: 400,
-			Message:    "Your problem is not my problem\n",
-		}
-	}
-	return &server.HandlerError{
-		Message: "All good",
+	switch {
+	case req.RequestLine.RequestTarget == "/yourproblem":
+		res.WriteStatusLine(response.BadRequest)
+		responseBody := []byte(`<html>
+<head>
+<title>400 Bad Request</title>
+</head>
+<body>
+<h1>Bad Request</h1>
+<p>Your request honestly kinda sucked.</p>
+</body>
+</html>`)
+		headers := response.GetDefaultHeaders(len(responseBody))
+		headers.Set("Content-Type", "text/html")
+		res.WriteHeaders(headers)
+		res.WriteBody(responseBody)
+	case req.RequestLine.RequestTarget == "/myproblem":
+		res.WriteStatusLine(response.InternalServerError)
+		responseBody := []byte(`<html>
+<head>
+<title>500 Internal Server Error</title>
+</head>
+<body>
+<h1>Internal Server Error</h1>
+<p>Okay, you know what? This one is on me.</p>
+</body>
+</html>`)
+		headers := response.GetDefaultHeaders(len(responseBody))
+		headers.Set("Content-Type", "text/html")
+		res.WriteHeaders((headers))
+		res.WriteBody(responseBody)
+	default:
+		res.WriteStatusLine(response.OK)
+		responseBody := []byte(`<html>
+<head>
+<title>200 OK</title>
+</head>
+<body>
+<h1>Success!</h1>
+<p>Your request was an absolute banger.</p>
+</body>
+</html>`)
+		headers := response.GetDefaultHeaders(len(responseBody))
+		headers.Set("Content-Type", "text/html")
+		res.WriteHeaders(headers)
+		res.WriteBody(responseBody)
 	}
 }
 

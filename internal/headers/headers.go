@@ -61,3 +61,14 @@ func (h Headers) Get(key string) string {
 
 	return value
 }
+
+func (h Headers) Set(header string, newValue string) {
+	header = strings.ToLower(header)
+
+	if currentValue, ok := h[header]; ok {
+		h[header] = currentValue + ", " + newValue
+		return
+	}
+
+	h[header] = newValue
+}
